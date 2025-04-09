@@ -1,0 +1,324 @@
+"""
+Disk Scheduling Algorithms Simulator
+This program implements and visualizes different disk scheduling algorithms:
+- FCFS (First-Come-First-Serve)
+- SSTF (Shortest Seek Time First)
+- SCAN (Elevator Algorithm)
+- C-SCAN (Circular SCAN)
+- LOOK (Optimized SCAN)
+"""
+
+import matplotlib.pyplot as plt
+from collections import deque
+
+def fcfs(requests, head):
+    """
+    First-Come-First-Serve (FCFS) Algorithm
+    Processes requests in the order they arrive.
+    
+    Args:
+        requests (list): List of disk access requests
+        head (int): Starting position of the disk head
+    
+    Returns:
+        tuple: (order of processing, total seek time)
+    """
+    total_seek = 0
+    order = [head]  # Track the path of the disk head
+    current = head
+    
+    for request in requests:
+        total_seek += abs(request - current)  # Calculate seek time
+        order.append(request)
+        current = request  # Move head to the next request
+    
+    return order, total_seek
+
+def sstf(requests, head):
+    """
+    Shortest Seek Time First (SSTF) Algorithm
+    Processes the nearest request next to minimize seek time.
+    
+    Args:
+        requests (list): List of disk access requests
+        head (int): Starting position of the disk head
+    
+    Returns:
+        tuple: (order of processing, total seek time)
+    """
+    total_seek = 0
+    order = [head]
+    current = head
+    req_queue = requests.copy()  # Work on a copy to avoid modifying original list
+    
+    while req_queue:
+        # Find the closest request to the current head position
+        closest = None
+        min_seek = float('inf')  # Initialize with a large value
+        
+        for req in req_queue:
+            seek = abs(req - current)
+            if seek < min_seek:
+                min_seek = seek
+                closest = req
+        
+        total_seek += min_seek
+        order.append(closest)
+        current = closest
+        req_queue.remove(closest)  # Remove processed request
+    
+    return order, total_seek
+
+def scan(requests, head, direction="right", max_cylinder=199):
+    """
+    SCAN (Elevator) Algorithm
+    Moves the head in one direction, then reverses.
+    
+    Args:
+        requests (list): List of disk access requests
+        head (int): Starting position of the disk head
+        direction (str): Initial direction ("left" or "right")
+        max_cylinder (int): Maximum cylinder number (default: 199)
+    
+    Returns:
+        tuple: (order of processing, total seek time)
+    """
+    total_seek = 0
+    order = [head]
+    current = head
+    
+    # Split requests into left and right of the head
+    left_requests = sorted([r for r in requests if r <= head])
+    right_requests = sorted([r for r in requests if r > head])
+    
+    if direction == "right":
+        # Move right to the end
+        for req in right_requests:
+            total_seek += abs(req - current)
+            order.append(req)
+            current = req
+        
+        # If needed, go to the max cylinder
+        if right_requests and current != max_cylinder:
+            total_seek += abs(max_cylinder - current)
+            order.append(max_cylinder)
+            current = max_cylinder
+        
+        # Move left to the start
+        for req in reversed(left_requests):
+            total_seek += abs(req - current)
+            order.append(req)
+            current = req
+    else:
+        # Move left to the start
+        for req in reversed(left_requests):
+            total_seek += abs(req - current)
+            order.append(req)
+            current = req
+        
+        # If needed, go to cylinder 0
+        if left_requests and current != 0:
+            total_seek += abs(0 - current)
+            order.append(0)
+            current = 0
+        
+        # Move right to the end
+        for req in right_requests:
+            total_seek += abs(req - current)
+            order.append(req)
+            current = req
+    
+    return order, total_seek
+
+def cscan(requests, head, direction="right", max_cylinder=199):
+    """
+    C-SCAN (Circular SCAN) Algorithm
+    Moves in one direction and loops back to the start.
+    
+    Args:
+        requests (list): List of disk access requests
+        head (int): Starting position of the disk head
+        direction (str): Initial direction ("left" or "right")
+        max_cylinder (int): Maximum cylinder number (default: 199)
+    
+    Returns:
+        tuple: (order of processing, total seek time)
+    """
+    total_seek = 0
+    order = [head]
+    current = head
+    
+    # Split requests based on direction
+    if direction == "right":
+        first_part = sorted([r for r in requests if r >= head])
+        second_part = sorted([r for r in requests if r < head])
+    else:
+        first_part = sorted([r for r in requests if r <= head], reverse=True)
+        second_part = sorted([r for r in requests if r > head], reverse=True)
+    
+    # Process first part (e.g., right to max)
+    for req in first_part:
+        total_seek += abs(req - current)
+        order.append(req)
+        current = req
+    
+    # Handle the loop-around
+    if direction == "right":
+        if current != max_cylinder:
+            total_seek += abs(max_cylinder - current)
+            order.append(max_cylinder)
+        total_seek += max_cylinder  # Jump from max to 0
+        order.append(0)
+        current = 0
+    else:
+        if current != 0:
+            total_seek += abs(0 - current)
+            order.append(0)
+        total_seek += max_cylinder  # Jump from 0 to max
+        order.append(max_cylinder)
+        current = max_cylinder
+    
+    # Process second part (e.g., 0 to remaining requests)
+    for req in second_part:
+        total_seek += abs(req - current)
+        order.append(req)
+        current = req
+    
+    return order, total_seek
+
+def look(requests, head, direction="right", max_cylinder=199):
+    """
+    LOOK Algorithm (Optimized SCAN)
+    Similar to SCAN but reverses direction at the last request.
+    
+    Args:
+        requests (list): List of disk access requests
+        head (int): Starting position of the disk head
+        direction (str): Initial direction ("left" or "right")
+        max_cylinder (int): Maximum cylinder number (default: 199)
+    
+    Returns:
+        tuple: (order of processing, total seek time)
+    """
+    total_seek = 0
+    order = [head]
+    current = head
+    
+    left_requests = sorted([r for r in requests if r <= head])
+    right_requests = sorted([r for r in requests if r > head])
+    
+    if direction == "right":
+        # Move right to the last request (not max cylinder)
+        for req in right_requests:
+            total_seek += abs(req - current)
+            order.append(req)
+            current = req
+        
+        # Move left to the first request (not cylinder 0)
+        for req in reversed(left_requests):
+            total_seek += abs(req - current)
+            order.append(req)
+            current = req
+    else:
+        # Move left to the first request
+        for req in reversed(left_requests):
+            total_seek += abs(req - current)
+            order.append(req)
+            current = req
+        
+        # Move right to the last request
+        for req in right_requests:
+            total_seek += abs(req - current)
+            order.append(req)
+            current = req
+    
+    return order, total_seek
+
+def plot_movement(order, head, algorithm_name):
+    """
+    Visualizes the disk head movement.
+    
+    Args:
+        order (list): Sequence of disk head positions
+        head (int): Starting position
+        algorithm_name (str): Name of the algorithm for the title
+    """
+    plt.figure(figsize=(12, 6))
+    
+    # Plot the movement path
+    plt.plot(order, marker='o', linestyle='-', label='Head Movement')
+    
+    # Mark start and end positions
+    plt.scatter([0], [head], color='red', s=100, label='Start Position')
+    plt.scatter([len(order)-1], [order[-1]], color='green', s=100, label='End Position')
+    
+    # Annotate seek distances between steps
+    for i in range(1, len(order)):
+        x1, x2 = i-1, i
+        y1, y2 = order[i-1], order[i]
+        plt.annotate(f'{abs(y2-y1)}', 
+                    xy=((x1+x2)/2, (y1+y2)/2),
+                    xytext=(0, 5), 
+                    textcoords='offset points',
+                    ha='center')
+    
+    plt.title(f"Disk Head Movement ({algorithm_name})\nTotal Seek: {sum(abs(order[i]-order[i-1]) for i in range(1, len(order)))}")
+    plt.xlabel("Step Number")
+    plt.ylabel("Cylinder Number")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+def main():
+    """
+    Main function to run the disk scheduling simulator.
+    """
+    requests = [98, 183, 37, 122, 14, 124, 65, 67]  # Example request queue
+    head = 53  # Starting head position
+    
+    print("Disk Scheduling Algorithms")
+    print("Initial Head Position:", head)
+    print("Request Queue:", requests)
+    print("\nSelect Algorithm:")
+    print("1. First-Come-First-Serve (FCFS)")
+    print("2. Shortest Seek Time First (SSTF)")
+    print("3. SCAN (Elevator Algorithm)")
+    print("4. C-SCAN (Circular SCAN)")
+    print("5. LOOK (Improved SCAN)")
+    
+    choice = int(input("Enter your choice (1-5): "))
+    
+    algorithms = {
+        1: ("FCFS", fcfs),
+        2: ("SSTF", sstf),
+        3: ("SCAN", scan),
+        4: ("C-SCAN", cscan),
+        5: ("LOOK", look)
+    }
+    
+    if choice not in algorithms:
+        print("Invalid choice!")
+        return
+    
+    name, algorithm = algorithms[choice]
+    
+    # Handle direction for SCAN, C-SCAN, and LOOK
+    if choice in [3, 4, 5]:
+        direction = input("Enter initial direction (left/right): ").lower()
+        if direction not in ['left', 'right']:
+            direction = 'right'  # Default to right
+        order, total_seek = algorithm(requests, head, direction)
+        name = f"{name} ({direction})"
+    else:
+        order, total_seek = algorithm(requests, head)
+    
+    print("\nResults:")
+    print("Processing Order:", order)
+    print("Total Seek Time:", total_seek)
+    print("Average Seek Time:", total_seek / len(requests))
+    
+    plot_movement(order, head, name)
+
+if __name__ == "__main__":
+    main()
